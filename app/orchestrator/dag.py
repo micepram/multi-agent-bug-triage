@@ -229,28 +229,21 @@ class Orchestrator:
     def _bisection(
         self, run_id: str, report: BugReport, repro: Repro, sandbox: Sandbox
     ) -> BisectionOutcome:
+        # The bisection agent self-gates on determinism and regression-ness and
+        # returns inconclusive when bisection does not apply, so the orchestrator
+        # always invokes it and records the result.
         self._store.record_event(AgentEvent(run_id=run_id, agent="bisection", phase="enter"))
-        if self._is_regression(report) and repro.deterministic:
-            outcome = self._agents.bisection.bisect(report, repro, sandbox)
-            outputs: dict[str, object] = outcome.model_dump()
-        else:
-            outcome = BisectionOutcome(conclusive=False)
-            outputs = {"skipped": True, "reason": "not_a_regression_or_flaky"}
+        outcome = self._agents.bisection.bisect(report, repro, sandbox)
         self._store.record_event(
             AgentEvent(
                 run_id=run_id,
                 agent="bisection",
                 phase="exit",
-                outputs=outputs,
+                outputs=outcome.model_dump(),
                 signals={"bisection_certainty": outcome.certainty},
             )
         )
         return outcome
-
-    @staticmethod
-    def _is_regression(report: BugReport) -> bool:
-        """Phase 2 regression gate: a cited last-good ref makes it a regression."""
-        return report.last_good_ref is not None
 
     def _gate(
         self,

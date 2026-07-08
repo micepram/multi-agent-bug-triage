@@ -1,11 +1,12 @@
-"""Phase 2 heuristic Localize agent (spec Sections 3, 5).
+"""Localize agents (spec Sections 3, 5; Phases 2-4).
 
-The Phase 2 stand-in for SBFL + LLM code-search: extract candidate fault files
-from the repro stack trace and the report body, ranked by prominence. When a
-conclusive bisection introducing commit is available, its touched files are
-folded in as a strong prior and float to the top of the ranking. Phase 3 replaces
-the heuristic body with real spectrum-based localization and LLM code-search
-behind this same interface.
+- ``HeuristicLocalizeAgent`` (Phase 2): extract candidate fault files from the
+  stack trace and report, ranked by prominence.
+- ``LLMLocalizeAgent`` (Phase 3): SBFL (Ochiai) suspiciousness blended with LLM
+  code-search over the repo.
+
+Both fold a conclusive bisection introducing diff (its files) in as a strong
+prior that floats to the top of the ranking.
 """
 
 from __future__ import annotations
@@ -147,7 +148,12 @@ class LLMLocalizeAgent:
             scores[path] = scores.get(path, 0.0) + _W_LLM * (1.0 - i / n)
 
         # 3. Bisection introducing diff as a strong prior (floats to the top).
-        prior = introducing_files if (bisection.conclusive and introducing_files) else []
+        # Defaults to the files carried on a conclusive bisection outcome; an
+        # explicit argument overrides (used in tests).
+        prior_files = (
+            introducing_files if introducing_files is not None else bisection.introducing_files
+        )
+        prior = prior_files if (bisection.conclusive and prior_files) else []
         for path in _ordered_unique(prior):
             scores[path] = scores.get(path, 0.0) + _W_PRIOR
 

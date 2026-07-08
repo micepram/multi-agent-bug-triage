@@ -14,9 +14,10 @@ from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.agents.bisection import StubBisectionAgent
+from app.agents.bisection import GitBisectionAgent
 from app.agents.fix import LLMFixAgent
 from app.agents.localize import LLMLocalizeAgent, NullCoverageCollector
+from app.agents.regression import SandboxRegressionProbe
 from app.agents.reproduction import LLMReproSynthesizer, ReproductionAgent
 from app.agents.triage import RuleBasedTriageAgent, Taxonomy
 from app.agents.types import BugReport
@@ -51,7 +52,10 @@ def _build_agents(settings: Settings) -> Agents:
             LLMReproSynthesizer(build_llm_client(agents.reproduction)),
             settings.reproduction.n_runs,
         ),
-        bisection=StubBisectionAgent(),
+        bisection=GitBisectionAgent(
+            max_skip_ratio=settings.bisection.max_skip_ratio,
+            probe=SandboxRegressionProbe(),
+        ),
         localize=LLMLocalizeAgent(build_llm_client(agents.fix), NullCoverageCollector()),
         fix=LLMFixAgent(
             build_llm_client(agents.fix),

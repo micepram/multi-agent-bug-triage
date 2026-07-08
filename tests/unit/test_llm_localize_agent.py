@@ -105,6 +105,16 @@ def test_bisection_prior_floats_to_top() -> None:
     assert loc.locations[0].file == "src/culprit.py"
 
 
+def test_prior_defaults_to_files_on_the_bisection_outcome() -> None:
+    # No explicit introducing_files: the agent reads them from the outcome.
+    agent = LLMLocalizeAgent(_llm('{"files": []}'), FakeCoverage(None))
+    bisection = BisectionOutcome(
+        introducing_commit="abc", conclusive=True, introducing_files=["src/culprit.py"]
+    )
+    loc = agent.localize(REPORT, REPRO, bisection, _NoSandbox())
+    assert loc.locations[0].file == "src/culprit.py"
+
+
 def test_malformed_llm_output_is_tolerated() -> None:
     # Not JSON: fall back to extracting path-like tokens from the text.
     agent = LLMLocalizeAgent(

@@ -28,6 +28,9 @@ coverage.xml
 # OS
 .DS_Store
 
+# Local-only working instructions (not shared)
+CLAUDE.md
+
 # Secrets / credentials (never commit)
 *.pem
 *.key

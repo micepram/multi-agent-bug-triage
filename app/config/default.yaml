@@ -1,0 +1,24 @@
+# Default per-agent configuration (spec Section 9).
+# Local-first: Ollama by default. Swap any agent to a hosted provider by changing
+# provider/endpoint/model/api_key_env here — no code change. Secrets are read from
+# the named environment variable, never stored here.
+#
+# The database URL may be overridden by the DATABASE_URL environment variable.
+database_url: postgresql+psycopg://localhost:5432/triage
+
+agents:
+  triage: {provider: ollama, endpoint: "http://localhost:11434", model: "llama3.1:8b"}
+  reproduction: {provider: ollama, endpoint: "http://localhost:11434", model: "qwen2.5-coder:14b"}
+  fix: {provider: ollama, endpoint: "http://localhost:11434", model: "qwen2.5-coder:32b"}
+  selection: {provider: ollama, endpoint: "http://localhost:11434", model: "qwen2.5-coder:32b"}
+  reviewer: {provider: ollama, endpoint: "http://localhost:11434", model: "llama3.1:8b"}
+  embedding: {provider: ollama, endpoint: "http://localhost:11434", model: "nomic-embed-text"}
+
+fix:
+  k: 4                      # candidate patches per run
+reproduction:
+  n_runs: 5                 # determinism check runs
+bisection:
+  max_skip_ratio: 0.5       # above this, bisection is inconclusive
+confidence:
+  threshold: 0.7            # placeholder until calibrated by the threshold sweep

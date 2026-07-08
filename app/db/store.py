@@ -97,3 +97,33 @@ class SqlStore:
     def _update_run(self, run_id: str, **values: object) -> None:
         with self._session_factory() as session, session.begin():
             session.execute(update(Run).where(Run.id == uuid.UUID(run_id)).values(**values))
+
+    # -- read accessors (used by the HTTP surface) --------------------------
+
+    def get_run(self, run_id: str) -> dict[str, object] | None:
+        with self._session_factory() as session:
+            run = session.get(Run, uuid.UUID(run_id))
+            if run is None:
+                return None
+            return {
+                "repo": run.repo,
+                "base_ref": run.base_ref,
+                "source": run.source,
+                "source_ref": run.source_ref,
+                "severity": run.severity,
+                "component": run.component,
+                "status": run.status,
+                "confidence": float(run.confidence) if run.confidence is not None else None,
+            }
+
+    def get_escalation(self, run_id: str) -> tuple[str, dict[str, object]] | None:
+        with self._session_factory() as session:
+            row = (
+                session.query(Escalation)
+                .filter(Escalation.run_id == uuid.UUID(run_id))
+                .order_by(Escalation.created_at.desc())
+                .first()
+            )
+            if row is None:
+                return None
+            return row.reason, row.report

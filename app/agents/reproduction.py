@@ -27,6 +27,18 @@ class ReproSynthesizer(Protocol):
         ...
 
 
+class NullSynthesizer:
+    """Phase 2 placeholder: no LLM synthesis yet, so no repro is produced.
+
+    Used on the live ingestion path until the LLM synthesizer lands in Phase 3.
+    A run using it reproduces nothing and routes to a could-not-reproduce
+    escalation — the honest Phase 2 behaviour for a free-text report.
+    """
+
+    def synthesize(self, report: BugReport, attempt: int) -> str | None:
+        return None
+
+
 class ReproductionAgent:
     """Determinism-checked reproduction over N sandboxed runs."""
 

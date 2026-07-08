@@ -37,4 +37,4 @@ migrate:
 
 # Start the FastAPI orchestrator locally.
 run:
-	uv run uvicorn app.orchestrator.api:app --reload
+	uv run uvicorn app.orchestrator.main:app --reload

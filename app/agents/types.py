@@ -73,6 +73,8 @@ class BisectionOutcome(BaseModel):
     good_ref: str | None = None
     bad_ref: str | None = None
     introducing_commit: str | None = None
+    # Files touched by the introducing commit; folded into localization as a prior.
+    introducing_files: list[str] = Field(default_factory=list)
     skip_ratio: float | None = None
     conclusive: bool = False
 

@@ -19,12 +19,12 @@ from __future__ import annotations
 import re
 from typing import Protocol, runtime_checkable
 
-from app.agents.types import BugReport, Candidate, Language, Repro, ValidationOutcome
+from app.agents.types import BugReport, Candidate, Repro, ValidationOutcome
 from app.providers.base import Message
 from app.providers.client import LLMClient
 from app.sandbox.interface import Sandbox
+from app.sandbox.profiles import profile_for
 
-_REPRO_PATH = "repro_test.py"
 _TIMEOUT = 600
 
 
@@ -84,12 +84,10 @@ class ValidationAgent:
         *,
         test_cmd: list[str] | None = None,
         lint_cmd: list[str] | None = None,
-        repro_path: str = _REPRO_PATH,
     ) -> None:
         self._reviewer = reviewer
-        self._test_cmd = test_cmd or ["pytest", "-q"]
-        self._lint_cmd = lint_cmd or ["ruff", "check", "."]
-        self._repro_path = repro_path
+        self._test_cmd_override = test_cmd
+        self._lint_cmd_override = lint_cmd
 
     def validate(
         self,
@@ -98,15 +96,21 @@ class ValidationAgent:
         candidate: Candidate,
         sandbox: Sandbox,
     ) -> ValidationOutcome:
-        repro_cmd = self._repro_cmd(repro.language)
+        # Language-specific commands come from the profile so validation works
+        # for both the Python and JVM execution profiles.
+        profile = profile_for(repro.language)
+        repro_cmd = profile.repro_cmd(profile.repro_filename)
+        test_cmd = self._test_cmd_override or profile.test_cmd
+        lint_cmd = self._lint_cmd_override or profile.lint_cmd
+
         repro_after_patch_passes = sandbox.run(repro_cmd, timeout=_TIMEOUT).exit_code == 0
 
         # Regression gate: a single new failure fails validation. Phase 2 uses the
         # whole-suite exit status; Phase 4 tightens to previously-passing tests.
-        regression_free = sandbox.run(self._test_cmd, timeout=_TIMEOUT).exit_code == 0
+        regression_free = sandbox.run(test_cmd, timeout=_TIMEOUT).exit_code == 0
 
         static_analysis_clean = (
-            1.0 if sandbox.run(self._lint_cmd, timeout=_TIMEOUT).exit_code == 0 else 0.0
+            1.0 if sandbox.run(lint_cmd, timeout=_TIMEOUT).exit_code == 0 else 0.0
         )
 
         reviewer_verdict = self._reviewer.review(report, repro, candidate)
@@ -117,8 +121,3 @@ class ValidationAgent:
             static_analysis_clean=static_analysis_clean,
             reviewer_verdict=reviewer_verdict,
         )
-
-    def _repro_cmd(self, language: Language) -> list[str]:
-        if language is Language.PYTHON:
-            return ["python", self._repro_path]
-        return ["sh", self._repro_path]

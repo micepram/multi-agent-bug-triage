@@ -16,8 +16,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Protocol, runtime_checkable
 
 from app.agents.types import Language
+from app.sandbox.interface import Sandbox
 
 # Markers that identify the build system / language of a repository.
 _JAVA_MARKERS = frozenset(
@@ -94,3 +96,18 @@ def detect_language(filenames: Iterable[str]) -> Language | None:
 
 def profile_for(language: Language) -> ExecutionProfile:
     return _PROFILES[language]
+
+
+@runtime_checkable
+class LanguageDetector(Protocol):
+    def detect(self, sandbox: Sandbox) -> Language | None:
+        """Detect the repo's language by inspecting the prepared workspace."""
+        ...
+
+
+class SandboxLanguageDetector:
+    """Detect language from the tracked files of the prepared workspace."""
+
+    def detect(self, sandbox: Sandbox) -> Language | None:
+        result = sandbox.run(["git", "ls-files"], timeout=60)
+        return detect_language(result.stdout.splitlines())

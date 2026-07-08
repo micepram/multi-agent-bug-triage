@@ -16,11 +16,11 @@ import re
 import shlex
 
 from app.agents.regression import RegressionProbe, regression_gate
-from app.agents.types import BisectionOutcome, BugReport, Language, Repro
+from app.agents.types import BisectionOutcome, BugReport, Repro
 from app.sandbox.interface import Sandbox
+from app.sandbox.profiles import profile_for
 
 _BISECT_TIMEOUT = 3600
-_REPRO_PATH = "repro_test.py"
 _SCRIPT_PATH = "/workspace/bisect.sh"
 _LOG_PATH = "/workspace/bisect_log.txt"
 _FIRST_BAD_RE = re.compile(r"([0-9a-f]{7,40}) is the first bad commit")
@@ -96,7 +96,7 @@ class GitBisectionAgent:
         probe: RegressionProbe | None = None,
     ) -> None:
         self._max_skip_ratio = max_skip_ratio
-        self._build_cmd = build_cmd or ["pip", "install", "-e", "."]
+        self._build_cmd_override = build_cmd
         self._probe = probe
 
     def bisect(self, report: BugReport, repro: Repro, sandbox: Sandbox) -> BisectionOutcome:
@@ -134,9 +134,14 @@ class GitBisectionAgent:
         )
 
     def _install_scripts(self, repro: Repro, sandbox: Sandbox) -> None:
-        script = build_bisect_script(self._build_cmd, _repro_cmd(repro.language))
+        # Build/repro commands per the repo's execution profile, so bisection
+        # works for both the Python and JVM profiles.
+        profile = profile_for(repro.language)
+        build_cmd = self._build_cmd_override or profile.build_cmd
+        repro_cmd = profile.repro_cmd(profile.repro_filename)
+        script = build_bisect_script(build_cmd, repro_cmd)
         sandbox.write_file(_SCRIPT_PATH, script.encode("utf-8"))
-        sandbox.write_file(_REPRO_PATH, repro.script.encode("utf-8"))
+        sandbox.write_file(profile.repro_filename, repro.script.encode("utf-8"))
 
     def _run_bisect(self, good_ref: str, bad_ref: str, sandbox: Sandbox) -> str:
         cmd = [
@@ -158,9 +163,3 @@ class GitBisectionAgent:
             ["git", "show", "--name-only", "--pretty=format:", sha], timeout=_BISECT_TIMEOUT
         )
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-
-
-def _repro_cmd(language: Language) -> list[str]:
-    if language is Language.PYTHON:
-        return ["python", _REPRO_PATH]
-    return ["sh", _REPRO_PATH]

@@ -15,15 +15,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.agents.bisection import StubBisectionAgent
-from app.agents.fix import RevertFixAgent
-from app.agents.localize import HeuristicLocalizeAgent
-from app.agents.reproduction import NullSynthesizer, ReproductionAgent
+from app.agents.fix import LLMFixAgent
+from app.agents.localize import LLMLocalizeAgent, NullCoverageCollector
+from app.agents.reproduction import LLMReproSynthesizer, ReproductionAgent
 from app.agents.triage import RuleBasedTriageAgent, Taxonomy
-from app.agents.types import BugReport, Candidate, Repro
+from app.agents.types import BugReport
+from app.agents.validation import LLMReviewer, ValidationAgent
 from app.config.settings import Settings
 from app.db.store import SqlStore
 from app.orchestrator.confidence import GateConfig
 from app.orchestrator.dag import Agents, Orchestrator, RunOutcome
+from app.providers.factory import build_llm_client
 from app.sandbox.config import SandboxConfig
 from app.sandbox.gvisor import GvisorSandbox
 from app.sandbox.interface import Sandbox
@@ -40,23 +42,23 @@ _DEFAULT_TAXONOMY = Taxonomy(
 )
 
 
-class _ConstantReviewer:
-    """Phase 2 reviewer stub: neutral verdict until the LLM reviewer (Phase 3)."""
-
-    def review(self, report: BugReport, repro: Repro, candidate: Candidate) -> float:
-        return 0.5
-
-
 def _build_agents(settings: Settings) -> Agents:
-    from app.agents.validation import ValidationAgent
-
+    """Phase 3 agents, each built with its own configured model (spec Section 9)."""
+    agents = settings.agents
     return Agents(
         triage=RuleBasedTriageAgent(_DEFAULT_TAXONOMY),
-        reproduction=ReproductionAgent(NullSynthesizer(), settings.reproduction.n_runs),
+        reproduction=ReproductionAgent(
+            LLMReproSynthesizer(build_llm_client(agents.reproduction)),
+            settings.reproduction.n_runs,
+        ),
         bisection=StubBisectionAgent(),
-        localize=HeuristicLocalizeAgent(),
-        fix=RevertFixAgent(),
-        validation=ValidationAgent(_ConstantReviewer()),
+        localize=LLMLocalizeAgent(build_llm_client(agents.fix), NullCoverageCollector()),
+        fix=LLMFixAgent(
+            build_llm_client(agents.fix),
+            build_llm_client(agents.selection),
+            k=settings.fix.k,
+        ),
+        validation=ValidationAgent(LLMReviewer(build_llm_client(agents.reviewer))),
     )
 
 

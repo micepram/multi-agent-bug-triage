@@ -83,6 +83,18 @@ class CoverageCollector(Protocol):
         ...
 
 
+class NullCoverageCollector:
+    """No spectrum (SBFL disabled). Localization falls back to LLM + prior.
+
+    A real per-test coverage collector (Python ``coverage`` contexts / Java
+    JaCoCo, sandboxed) implements the same seam; the Ochiai math is already in
+    ``app.agents.sbfl`` and ranks the spectrum once one is wired in.
+    """
+
+    def collect(self, sandbox: Sandbox) -> Spectrum | None:
+        return None
+
+
 _CODE_SEARCH_PROMPT = (
     "You are a fault-localization assistant. Given a bug report and a stack "
     "trace, list the repository source files most likely to contain the fault. "

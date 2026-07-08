@@ -119,7 +119,10 @@ Built phase by phase per the spec; earlier acceptance checks gate later phases.
       Config-driven provider factory (Ollama default), SBFL (Ochiai) + LLM
       code-search Localize with a bisection prior, k-candidate Fix with
       suite-per-candidate and Selection, LLM Reviewer and repro synthesizer.
-- [ ] **Phase 4 — Bisection accelerator** (bounded, skip-aware).
+- [x] **Phase 4 — Bisection accelerator** (bounded, skip-aware). Regression gate
+      (cited ref or older-tag probe), determinism-gated `git bisect run` whose
+      script exits 125 on build failure, skip-ratio tracking with inconclusive
+      fallback, and the introducing diff folded into localization as a prior.
 - [ ] **Phase 5 — Java execution profile** + Multi-SWE-bench eval.
 
 > **gVisor is Linux-only.** The escape test and other integration/eval tiers are

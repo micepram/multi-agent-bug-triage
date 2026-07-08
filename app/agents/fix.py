@@ -24,6 +24,7 @@ from app.agents.types import (
 from app.providers.base import Message
 from app.providers.client import LLMClient
 from app.sandbox.interface import Sandbox
+from app.sandbox.profiles import profile_for
 
 _GIT_TIMEOUT = 120
 _SUITE_TIMEOUT = 600
@@ -111,7 +112,7 @@ class LLMFixAgent:
         self._selection_llm = selection_llm
         self._k = k
         self._cap = blast_radius_lines_cap
-        self._test_cmd = test_cmd or ["pytest", "-q"]
+        self._test_cmd_override = test_cmd
 
     def generate_candidates(
         self,
@@ -121,6 +122,7 @@ class LLMFixAgent:
         bisection: BisectionOutcome,
         sandbox: Sandbox,
     ) -> list[Candidate]:
+        test_cmd = self._test_cmd_override or profile_for(repro.language).test_cmd
         candidates: list[Candidate] = []
         for _ in range(self._k):
             diff = _extract_diff(
@@ -131,7 +133,7 @@ class LLMFixAgent:
             files, lines = _blast_radius(diff)
             if files == 0 or lines == 0 or lines > self._cap:
                 continue  # prefer minimal, applicable diffs; cap the blast radius
-            suite_passed = self._run_suite_with_patch(diff, sandbox)
+            suite_passed = self._run_suite_with_patch(diff, sandbox, test_cmd)
             candidates.append(
                 Candidate(
                     kind="llm_candidate",
@@ -157,13 +159,13 @@ class LLMFixAgent:
         chosen.selected = True
         return chosen
 
-    def _run_suite_with_patch(self, diff: str, sandbox: Sandbox) -> bool:
+    def _run_suite_with_patch(self, diff: str, sandbox: Sandbox, test_cmd: list[str]) -> bool:
         sandbox.write_file(_PATCH_PATH, diff.encode("utf-8"))
         applied = sandbox.run(["git", "apply", _PATCH_PATH], timeout=_GIT_TIMEOUT)
         if applied.exit_code != 0:
             sandbox.run(["git", "checkout", "--", "."], timeout=_GIT_TIMEOUT)
             return False
-        suite = sandbox.run(self._test_cmd, timeout=_SUITE_TIMEOUT)
+        suite = sandbox.run(test_cmd, timeout=_SUITE_TIMEOUT)
         # Reset the tree so each candidate is evaluated against a clean checkout.
         sandbox.run(["git", "checkout", "--", "."], timeout=_GIT_TIMEOUT)
         return suite.exit_code == 0

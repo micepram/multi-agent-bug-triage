@@ -18,8 +18,8 @@ from app.agents.types import BugReport, Language, Repro
 from app.providers.base import Message
 from app.providers.client import LLMClient
 from app.sandbox.interface import Sandbox
+from app.sandbox.profiles import LanguageDetector, profile_for
 
-_REPRO_PATH = "repro_test.py"
 _REPRO_TIMEOUT = 120
 
 
@@ -82,27 +82,32 @@ class ReproductionAgent:
         n_runs: int,
         *,
         language: Language = Language.PYTHON,
-        repro_path: str = _REPRO_PATH,
+        detector: LanguageDetector | None = None,
     ) -> None:
         self._synthesizer = synthesizer
         self._n_runs = n_runs
         self._language = language
-        self._repro_path = repro_path
+        self._detector = detector
 
     def reproduce(self, report: BugReport, sandbox: Sandbox) -> Repro:
+        # Detect the repo's language (falling back to the configured default) and
+        # drive the repro through that execution profile.
+        language = (self._detector.detect(sandbox) if self._detector else None) or self._language
+        profile = profile_for(language)
+
         # The orchestrator retries synthesis; each call is one synthesis attempt.
         script = self._synthesizer.synthesize(report, attempt=0)
         if script is None:
             return Repro(
                 script="",
-                language=self._language,
+                language=language,
                 reproduced=False,
                 reproduce_rate=0.0,
                 n_runs=0,
             )
 
-        sandbox.write_file(self._repro_path, script.encode("utf-8"))
-        cmd = self._run_cmd()
+        sandbox.write_file(profile.repro_filename, script.encode("utf-8"))
+        cmd = profile.repro_cmd(profile.repro_filename)
 
         reproduced_count = 0
         last_trace = ""
@@ -116,15 +121,9 @@ class ReproductionAgent:
         rate = reproduced_count / self._n_runs if self._n_runs else 0.0
         return Repro(
             script=script,
-            language=self._language,
+            language=language,
             reproduced=reproduced_count > 0,
             reproduce_rate=rate,
             n_runs=self._n_runs,
             stack_trace=last_trace,
         )
-
-    def _run_cmd(self) -> list[str]:
-        if self._language is Language.PYTHON:
-            return ["python", self._repro_path]
-        # Java and others are wired in Phase 5.
-        return ["sh", self._repro_path]

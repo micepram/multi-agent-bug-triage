@@ -123,7 +123,10 @@ Built phase by phase per the spec; earlier acceptance checks gate later phases.
       (cited ref or older-tag probe), determinism-gated `git bisect run` whose
       script exits 125 on build failure, skip-ratio tracking with inconclusive
       fallback, and the introducing diff folded into localization as a prior.
-- [ ] **Phase 5 — Java execution profile** + Multi-SWE-bench eval.
+- [x] **Phase 5 — Java execution profile** + Multi-SWE-bench eval. Marker-file
+      language detection, Python and JVM execution profiles (Java commands adapt
+      to Maven vs. Gradle at runtime), profile-driven Reproduction/Validation/Fix/
+      Bisection, and the Multi-SWE-bench Java instance loader.
 
 > **gVisor is Linux-only.** The escape test and other integration/eval tiers are
 > written as real executable tests but skip on macOS/Windows; run them on a

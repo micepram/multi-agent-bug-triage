@@ -30,6 +30,7 @@ from app.providers.factory import build_llm_client
 from app.sandbox.config import SandboxConfig
 from app.sandbox.gvisor import GvisorSandbox
 from app.sandbox.interface import Sandbox
+from app.sandbox.profiles import SandboxLanguageDetector
 
 # Coarse default taxonomy (spec Section 5) when a repo has none configured.
 _DEFAULT_TAXONOMY = Taxonomy(
@@ -51,6 +52,7 @@ def _build_agents(settings: Settings) -> Agents:
         reproduction=ReproductionAgent(
             LLMReproSynthesizer(build_llm_client(agents.reproduction)),
             settings.reproduction.n_runs,
+            detector=SandboxLanguageDetector(),
         ),
         bisection=GitBisectionAgent(
             max_skip_ratio=settings.bisection.max_skip_ratio,

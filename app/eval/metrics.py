@@ -37,6 +37,31 @@ def resolve_rate(resolved_flags: Iterable[bool]) -> float:
     return sum(1 for f in flags if f) / len(flags)
 
 
+class SplitResolveRate(BaseModel):
+    """Resolve rate split by whether a bisection prior was available."""
+
+    with_prior: float
+    without_prior: float
+    n_with_prior: int
+    n_without_prior: int
+
+
+def resolve_rate_by_bisection_prior(labeled: list[tuple[bool, bool]]) -> SplitResolveRate:
+    """Split resolve rate by prior availability. Input: (resolved, had_prior).
+
+    The spec expects the resolve rate to be higher when a bisection prior was
+    available; reporting the split makes that measurable.
+    """
+    with_prior = [resolved for resolved, had_prior in labeled if had_prior]
+    without_prior = [resolved for resolved, had_prior in labeled if not had_prior]
+    return SplitResolveRate(
+        with_prior=resolve_rate(with_prior),
+        without_prior=resolve_rate(without_prior),
+        n_with_prior=len(with_prior),
+        n_without_prior=len(without_prior),
+    )
+
+
 def threshold_sweep(labeled: list[LabeledScore], thresholds: list[float]) -> list[SweepPoint]:
     """Precision/recall of autofix (composite >= threshold) at each threshold."""
     total_correct = sum(1 for s in labeled if s.correct)

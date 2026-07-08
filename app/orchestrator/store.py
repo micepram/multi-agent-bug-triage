@@ -97,3 +97,14 @@ class InMemoryStore:
 
     def events_for(self, run_id: str) -> list[AgentEvent]:
         return [e for e in self.events if e.run_id == run_id]
+
+    # -- read accessors (used by the HTTP surface) --------------------------
+
+    def get_run(self, run_id: str) -> dict[str, object] | None:
+        return self.runs.get(run_id)
+
+    def get_escalation(self, run_id: str) -> tuple[str, dict[str, object]] | None:
+        for rid, reason, report in self.escalations:
+            if rid == run_id:
+                return reason, report
+        return None

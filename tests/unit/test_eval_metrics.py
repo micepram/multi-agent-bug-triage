@@ -11,6 +11,7 @@ from app.eval.metrics import (
     LabeledScore,
     pick_operating_point,
     resolve_rate,
+    resolve_rate_by_bisection_prior,
     threshold_sweep,
 )
 
@@ -18,6 +19,22 @@ from app.eval.metrics import (
 def test_resolve_rate_counts_resolved_over_total() -> None:
     assert resolve_rate([True, False, True, False]) == 0.5
     assert resolve_rate([]) == 0.0
+
+
+def test_resolve_rate_split_by_bisection_prior() -> None:
+    # (resolved, had_prior)
+    labeled = [
+        (True, True),
+        (True, True),
+        (False, True),  # with-prior: 2/3
+        (True, False),
+        (False, False),  # without-prior: 1/2
+    ]
+    split = resolve_rate_by_bisection_prior(labeled)
+    assert split.n_with_prior == 3
+    assert split.n_without_prior == 2
+    assert abs(split.with_prior - 2 / 3) < 1e-9
+    assert split.without_prior == 0.5
 
 
 def test_sweep_reports_precision_and_recall_per_threshold() -> None:

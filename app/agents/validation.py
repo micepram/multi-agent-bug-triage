@@ -16,9 +16,12 @@ directly.
 
 from __future__ import annotations
 
+import re
 from typing import Protocol, runtime_checkable
 
 from app.agents.types import BugReport, Candidate, Language, Repro, ValidationOutcome
+from app.providers.base import Message
+from app.providers.client import LLMClient
 from app.sandbox.interface import Sandbox
 
 _REPRO_PATH = "repro_test.py"
@@ -30,6 +33,46 @@ class Reviewer(Protocol):
     def review(self, report: BugReport, repro: Repro, candidate: Candidate) -> float:
         """Return a [0,1] verdict that the patch addresses the reported symptom."""
         ...
+
+
+_REVIEW_PROMPT = (
+    "You are a patch reviewer. Judge whether the patch addresses the reported "
+    "symptom's root cause, versus merely making a test pass. Respond with a single "
+    "confidence number between 0 and 1 (or YES/NO)."
+)
+
+
+class LLMReviewer:
+    """LLM-backed Reviewer (Phase 3) behind the provider interface."""
+
+    def __init__(self, llm: LLMClient) -> None:
+        self._llm = llm
+
+    def review(self, report: BugReport, repro: Repro, candidate: Candidate) -> float:
+        messages = [
+            Message(role="system", content=_REVIEW_PROMPT),
+            Message(
+                role="user",
+                content=(
+                    f"Issue: {report.title}\n{report.body}\n\n"
+                    f"Stack trace:\n{repro.stack_trace}\n\nPatch:\n{candidate.diff}"
+                ),
+            ),
+        ]
+        return _parse_verdict(self._llm.complete(messages).text)
+
+
+def _parse_verdict(text: str) -> float:
+    """Parse a [0,1] verdict from a number or a yes/no; neutral 0.5 if unclear."""
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if match is not None:
+        return max(0.0, min(1.0, float(match.group())))
+    lowered = text.lower()
+    if "yes" in lowered:
+        return 0.9
+    if "no" in lowered:
+        return 0.1
+    return 0.5
 
 
 class ValidationAgent:

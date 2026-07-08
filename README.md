@@ -115,7 +115,10 @@ Built phase by phase per the spec; earlier acceptance checks gate later phases.
       (SapFix full-revert), confidence gate, escalation, draft-PR handoff,
       Postgres schema + append-only audit log, SWE-bench harness + calibration
       threshold sweep, FastAPI surface.
-- [ ] **Phase 3 — Real LLM Fix & Localize** behind the provider interface.
+- [x] **Phase 3 — Real LLM Fix & Localize** behind the provider interface.
+      Config-driven provider factory (Ollama default), SBFL (Ochiai) + LLM
+      code-search Localize with a bisection prior, k-candidate Fix with
+      suite-per-candidate and Selection, LLM Reviewer and repro synthesizer.
 - [ ] **Phase 4 — Bisection accelerator** (bounded, skip-aware).
 - [ ] **Phase 5 — Java execution profile** + Multi-SWE-bench eval.
 

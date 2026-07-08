@@ -11,9 +11,12 @@ Runs untrusted generated code; execution only ever goes through the Sandbox.
 
 from __future__ import annotations
 
+import re
 from typing import Protocol, runtime_checkable
 
 from app.agents.types import BugReport, Language, Repro
+from app.providers.base import Message
+from app.providers.client import LLMClient
 from app.sandbox.interface import Sandbox
 
 _REPRO_PATH = "repro_test.py"
@@ -37,6 +40,37 @@ class NullSynthesizer:
 
     def synthesize(self, report: BugReport, attempt: int) -> str | None:
         return None
+
+
+_SYNTH_PROMPT = (
+    "You are a bug-reproduction assistant. From the bug report, write a MINIMAL, "
+    "self-contained script that reproduces the bug and exits non-zero when the bug "
+    "is present. Respond ONLY with the script, in a code fence."
+)
+
+
+class LLMReproSynthesizer:
+    """Phase 3 synthesizer: an LLM writes a self-contained repro from the report."""
+
+    def __init__(self, llm: LLMClient) -> None:
+        self._llm = llm
+
+    def synthesize(self, report: BugReport, attempt: int) -> str | None:
+        messages = [
+            Message(role="system", content=_SYNTH_PROMPT),
+            Message(
+                role="user",
+                content=f"Repo: {report.repo}\nTitle: {report.title}\n\nReport:\n{report.body}",
+            ),
+        ]
+        return _extract_script(self._llm.complete(messages).text)
+
+
+def _extract_script(text: str) -> str | None:
+    """Strip a code fence if present; return None when there is no script."""
+    fence = re.search(r"```(?:\w+)?\n(.*?)```", text, re.DOTALL)
+    script = fence.group(1) if fence else text
+    return script if script.strip() else None
 
 
 class ReproductionAgent:
